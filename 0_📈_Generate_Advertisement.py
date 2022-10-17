@@ -111,6 +111,16 @@ def process(url, requests_temp, banner_temp):
 
 
 def main():
+    st.image('img/logo.png')
+
+    st.markdown('[Tune the Model](tunethemodel.com) allows you '
+                'to create a custom text AI tailored for your application.')
+
+    'Powered by huge pre-trained transformer language models, '\
+        'Tune the Model enables you to create text AI and bring it '\
+        'to production without investing in labelling large datasets, '\
+        'running tons of experiments, or setting up GPU cloud.'
+    
     st.title('Generate Advertisement')
 
     'You can tune the model to generate great advertisement '\

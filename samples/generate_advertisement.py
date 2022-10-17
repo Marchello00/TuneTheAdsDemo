@@ -6,6 +6,6 @@ samples = [
     'https://www.emirates.com/ae/english/',
     'https://www.dubai-metro.me/',
     'https://www.python.org/',
-    'http://netflix.com/',
+    # 'http://netflix.com/',
     'https://www.imdb.com/'
 ]
