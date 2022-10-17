@@ -1,0 +1,1 @@
+generation_warning = 'We are doing our best to keep the generated content safe and nonviolent, but sometimes incidents can still happen. In case you encountered something you think might be unacceptable, please contact us and we will fix the issue as soon as possible.'

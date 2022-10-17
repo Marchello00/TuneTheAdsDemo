@@ -1,0 +1,8 @@
+tune_the_model==0.1.31
+streamlit==1.13.0
+numpy==1.23.3
+pandas==1.5.0
+python-dotenv==0.21.0
+lxml==4.9.1
+bs4==0.0.1
+cloudscraper==1.2.64
