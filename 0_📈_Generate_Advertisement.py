@@ -76,7 +76,7 @@ def process(url, requests_temp, banner_temp):
         st.error(
             "Sorry, we couldn't download the information from the site.\n"
             "Access may have been blocked, you can check the "
-            "Site Content section above.\n\n"
+            "\"Site content\" section above.\n\n"
             "Please, try again or choose another site."
         )
         return
