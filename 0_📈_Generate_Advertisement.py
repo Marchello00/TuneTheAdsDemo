@@ -3,6 +3,7 @@ import core.utils
 import core.constants
 import core.generate_advertisement
 from samples.generate_advertisement import samples
+import sys
 
 NUM_BANNERS = 7
 
@@ -42,14 +43,14 @@ def gen_keywords(title, content, banner, temp):
     )
 
 
-def gen_banners(title, content, temp):
+def gen_banners(title, content, temp, num_hypos=5):
     return core.generate_advertisement.generate_banner(
         st.session_state['banner_generator'],
         st.session_state['banner_classifier'],
         title,
         content,
         temp,
-        num_hypos=5
+        num_hypos=num_hypos
     )
 
 
@@ -80,17 +81,28 @@ def process(url, requests_temp, banner_temp):
 
     tmp = st.columns(2)
     tmp[0].header('Banners:')
-    tmp[1].header('Requests:')
+    tmp[1].header('Keywords:')
     '--------'
-    # for h, t in st.session_state["banners"]:
+
     for _ in range(NUM_BANNERS):
+        st.empty()
         c1, c2 = st.columns(2)
-        # banner = h + '\n' + t
         with c1:
-            with st.spinner("Generating banners..."):
-                h, t = gen_banners(
-                    title, content, banner_temp
-                )[0]
+            with st.spinner("Generating a banner..."):
+                try:
+                    banners = gen_banners(
+                        title, content, banner_temp, num_hypos=1
+                    )
+                except ValueError:
+                    continue
+                except SystemError as e:
+                    print(e, file=sys.stderr)
+                    st.error(
+                        "Sorry, something went wrong. "
+                        "Please, try again, maybe with another site."
+                    )
+                    return
+                h, t = banners[0]
                 banner = h + '\n' + t
             st.subheader(h)
             st.write(t)
@@ -147,7 +159,7 @@ def main():
             "with an increase in creativity, diversity grows"
         )
     with c2:
-        st.subheader('Request generation parameters')
+        st.subheader('Keyword generation parameters')
         keywords_temp = st.slider(
             'Creativity', 0.01, 2.1, value=1.,
             key='kw_temp',

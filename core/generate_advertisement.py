@@ -133,10 +133,13 @@ def generate_banner(
     title, content, temp=0.6, num_hypos=7
 ):
     model_input = get_banner_gen_prefix(title, content)
-    banners = banner_generator.generate(
-        model_input, num_hypos=num_hypos, min_tokens=4,
-        max_tokens=128, temperature=temp, top_k=30
-    )
+    try:
+        banners = banner_generator.generate(
+            model_input, num_hypos=num_hypos, min_tokens=4,
+            max_tokens=128, temperature=temp, top_k=30
+        )
+    except ttm.TuneTheModelException:
+        raise SystemError("Server error.")
 
     banners = [b.replace('\\r\\n', '\n') for b in banners]
     split_banners = [b.split('\n', maxsplit=1) for b in banners]
@@ -150,4 +153,6 @@ def generate_banner(
             continue
         result.append(b)
 
+    if not result:
+        raise ValueError("No banners generated.")
     return result
