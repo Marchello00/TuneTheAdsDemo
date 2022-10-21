@@ -83,6 +83,29 @@ request_classifier_mapping = [
 ]
 
 
+def is_bad_content(title, content):
+    if not content:
+        return True
+    if len(title) + len(content) < 100:
+        return True
+
+    ban_patterns = [
+        ('access', 'denied'),
+        'page not found'
+    ]
+    for pats in ban_patterns:
+        if isinstance(pats, str):
+            pats = [pats]
+        all_in = True
+        for pat in pats:
+            if pat not in content.lower() and pat not in title.lower():
+                all_in = False
+                break
+        if all_in:
+            return True
+    return False
+
+
 def classify_request(request_classifier, title, content, banner, request):
     scores = request_classifier.classify(
         get_request_classify_prompt(title, content, banner, request)

@@ -72,7 +72,16 @@ def process(url, requests_temp, banner_temp):
     ex.write(title)
     ex.write(content)
 
-    if len(title) + len(content) < 200:
+    if core.generate_advertisement.is_bad_content(title, content):
+        st.error(
+            "Sorry, we couldn't download the information from the site.\n"
+            "Access may have been blocked, you can check the "
+            "Site Content section above.\n\n"
+            "Please, try again or choose another site."
+        )
+        return
+
+    if len(title) + len(content) < 300:
         st.warning('Attention! Very little text was '
                    'extracted from the page - the '
                    'results may be of poor quality.')
