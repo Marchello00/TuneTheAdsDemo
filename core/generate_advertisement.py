@@ -21,20 +21,28 @@ def get_title_and_content(url, num_retries=5):
 
 def get_request_classifier():
     return ttm.TuneTheModel.from_id(
-        '4cc5a4244e0611ed96478b0f9eb21374'
+        '4cc5a4244e0611ed96478b0f9eb21374'  # autotarget, translated
     )
 
 
 def get_request_generator():
     return ttm.TuneTheModel.from_id(
-        '2e515fe24e0611eda45161dc08b2d04c'
+        '2e515fe24e0611eda45161dc08b2d04c' # autotarget, translated
+    )
+
+
+def get_keyword_generator():
+    return ttm.TuneTheModel.from_id(
+        '7bc2658a511e11ed966e1b318d0839ce'  # similarweb
     )
 
 
 def get_banner_generator():
     return ttm.TuneTheModel.from_id(
-        '09d6dd904e0611edbf82ff3a2de0976d'
+        'f5782c4c511a11ed9cbc2b904aa4d5aa'  # similarweb
+        # '09d6dd904e0611edbf82ff3a2de0976d' # autotarget, translated
     )
+
 
 def get_banner_classifier():
     return ttm.TuneTheModel.from_id(
@@ -43,16 +51,24 @@ def get_banner_classifier():
 
 
 def get_banner_gen_prefix(title, content):
-    return title + '\n' + content + '\n\n\n'
+    # return title + '\n' + content + '\n\n\n' # autotarget
+    return title + '\n' + content + '\n\nBanner\n'  # similarweb
 
 
-# label \in [broad, exact, unlikely]
+def get_keyword_gen_prefix(title, content, banner, label='exact'):
+    # similarweb
+    return get_banner_gen_prefix(title, content) + banner + '\n\nKeyword\n'
+
+
 def get_request_gen_prefix(title, content, banner, label='exact'):
+    # autotarget
     return get_banner_gen_prefix(title, content) + '\n\nBanner:\n' +\
             banner + '\n\nLabel: ' + label + '\n\nSearch request: '
 
 
+# label \in [broad, exact, unlikely]
 def get_request_classify_prompt(title, content, banner, request):
+    # autotarget
     return get_banner_gen_prefix(title, content) + '\n\nBanner:\n' +\
             banner + '\n\nSearch request: ' + request
 
@@ -77,13 +93,13 @@ def classify_request(request_classifier, title, content, banner, request):
     return result
 
 
-def gen_requests(
-    request_generator, request_classifier,
+def gen_keywords(
+    keyword_generator, request_classifier,
     title, content, banner, temp=1.1, num_hypos=18
 ):
-    model_input = get_request_gen_prefix(title, content, banner)
+    model_input = get_keyword_gen_prefix(title, content, banner)
 
-    result = request_generator.generate(
+    result = keyword_generator.generate(
         model_input, num_hypos=num_hypos, min_tokens=4,
         max_tokens=128, temperature=temp, top_k=30
     )
@@ -92,18 +108,18 @@ def gen_requests(
 
     result = [
         (
-            request,
+            keyword,
             classify_request(
-                request_classifier, title, content, banner, request
+                request_classifier, title, content, banner, keyword
             )
         )
-        for request in result
+        for keyword in result
     ]
 
     result = sorted(
         [
-            (request, scores)
-            for request, scores in result
+            (keyword, scores)
+            for keyword, scores in result
             if scores[scores['Property'] == 'No match']['Score'].iloc[0] < 0.5
         ],
         key=lambda x: -x[1][x[1]['Property'] == 'Exact match']['Score'].iloc[0]

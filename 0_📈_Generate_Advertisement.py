@@ -4,6 +4,8 @@ import core.constants
 import core.generate_advertisement
 from samples.generate_advertisement import samples
 
+NUM_BANNERS = 7
+
 st.set_page_config(
     page_title="📈 Generate Advertisement",
 )
@@ -12,9 +14,9 @@ if 'request_classifier' not in st.session_state:
     st.session_state['request_classifier'] =\
         core.generate_advertisement.get_request_classifier()
 
-if 'request_generator' not in st.session_state:
-    st.session_state['request_generator'] =\
-        core.generate_advertisement.get_request_generator()
+if 'keyword_generator' not in st.session_state:
+    st.session_state['keyword_generator'] =\
+        core.generate_advertisement.get_keyword_generator()
 
 if 'banner_classifier' not in st.session_state:
     st.session_state['banner_classifier'] =\
@@ -28,9 +30,9 @@ if 'adgen_input' not in st.session_state:
     st.session_state['adgen_input'] = core.utils.choose(samples)
 
 
-def gen_requests(title, content, banner, temp):
-    return core.generate_advertisement.gen_requests(
-        st.session_state['request_generator'],
+def gen_keywords(title, content, banner, temp):
+    return core.generate_advertisement.gen_keywords(
+        st.session_state['keyword_generator'],
         st.session_state['request_classifier'],
         title,
         content,
@@ -80,20 +82,22 @@ def process(url, requests_temp, banner_temp):
     tmp[0].header('Banners:')
     tmp[1].header('Requests:')
     '--------'
-    with st.spinner("Generating banners..."):
-        st.session_state["banners"] = gen_banners(
-            title, content, banner_temp
-        )
-    for h, t in st.session_state["banners"]:
+    # for h, t in st.session_state["banners"]:
+    for _ in range(NUM_BANNERS):
         c1, c2 = st.columns(2)
-        banner = h + '\n' + t
+        # banner = h + '\n' + t
         with c1:
+            with st.spinner("Generating banners..."):
+                h, t = gen_banners(
+                    title, content, banner_temp
+                )[0]
+                banner = h + '\n' + t
             st.subheader(h)
             st.write(t)
 
         with c2:
             with st.spinner("Generating keywords..."):
-                keywords = gen_requests(
+                keywords = gen_keywords(
                     title,
                     content,
                     banner,
@@ -120,7 +124,7 @@ def main():
         'Tune the Model enables you to create text AI and bring it '\
         'to production without investing in labelling large datasets, '\
         'running tons of experiments, or setting up GPU cloud.'
-    
+
     st.title('Generate Advertisement')
 
     'You can tune the model to generate great advertisement '\
@@ -145,7 +149,7 @@ def main():
     with c2:
         st.subheader('Request generation parameters')
         keywords_temp = st.slider(
-            'Creativity', 0.01, 2.1, value=1.1,
+            'Creativity', 0.01, 2.1, value=1.,
             key='kw_temp',
             help="With a decrease in creativity, correctness grows, "
             "with an increase in creativity, diversity grows"
