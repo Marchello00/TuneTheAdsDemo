@@ -154,12 +154,16 @@ def gen_keywords(
 
 def prepare_banner(banner):
     banner = banner.replace('\\r\\n', '\n')
-    return banner.split('\n', maxsplit=1)  # [title, description]
+    parts = banner.split('\n', maxsplit=1)  # [title, description]
+    parts = [p.strip() for p in parts]
+    return parts
 
 
 # banner = [title, description]
 def is_good_banner(banner, title, content, banner_classifier, threshold=0.3):
     if len(banner) <= 1:
+        return False, 0
+    if any(len(b) == 0 for b in banner):
         return False, 0
 
     if langid.classify('\n'.join(banner))[0] != 'en':

@@ -93,16 +93,26 @@ def process(url, requests_temp, banner_temp):
     tmp[1].header('Keywords:')
     '--------'
 
+    skipped = False
+    generated = False
+    warned = False
     for _ in range(NUM_BANNERS):
-        st.empty()
         c1, c2 = st.columns(2)
         with c1:
+            if skipped and not warned:
+                st.warning(
+                    "Generation takes longer than usual, perhaps the "
+                    "site content is too specific.\n\n"
+                    "You can check the \"Site content\" section above."
+                )
+                warned = True
             with st.spinner("Generating a banner..."):
                 try:
                     banners = gen_banners(
                         title, content, banner_temp, num_hypos=1
                     )
                 except ValueError:
+                    skipped = True
                     continue
                 except SystemError as e:
                     print(e, file=sys.stderr)
@@ -111,10 +121,12 @@ def process(url, requests_temp, banner_temp):
                         "Please, try again, maybe with another site."
                     )
                     return
+                skipped = False
                 h, t = banners[0]
                 banner = h + '\n' + t
             st.subheader(h)
             st.write(t)
+            generated = True
 
         with c2:
             with st.spinner("Generating keywords..."):
@@ -131,6 +143,14 @@ def process(url, requests_temp, banner_temp):
                 ex.bar_chart(t[1], x='Property', y='Score')
 
         '--------'
+    if not generated:
+        st.error(
+            "Sorry, we were unable to create banners "
+            "for this site. The content may be too "
+            "specific or non-English, you can check "
+            "the \"Site Content\" section above.\n\n"
+            "Please, try again or choose another site."
+        )
 
     st.caption(core.constants.generation_warning)
 
