@@ -54,7 +54,7 @@ def gen_banners(title, content, temp, num_hypos=5):
     )
 
 
-def process(url, requests_temp, banner_temp):
+def process(url, additional_info, requests_temp, banner_temp):
     try:
         title, content = core.generate_advertisement.get_title_and_content(url)
     except Exception:
@@ -69,8 +69,15 @@ def process(url, requests_temp, banner_temp):
                  'Please try generating for another site.')
         return
     ex = st.expander('Site content')
+    ex.write('Title:')
     ex.write(title)
+    if additional_info:
+        ex.write("Additional information:")
+        ex.write(additional_info)
+    ex.write('Content:')
     ex.write(content)
+
+    content = additional_info + content
 
     if core.generate_advertisement.is_bad_content(title, content):
         st.error(
@@ -181,6 +188,16 @@ def main():
             samples, st.session_state['adgen_input']
         )
     url = st.text_input('URL', value=st.session_state['adgen_input'])
+
+    additional_info = st.text_area(
+        'Description',
+        placeholder="Write some information about your product, "
+        "company or any other stuff, that you want to advertise.\n"
+        "You can leave this field empty, if your website contains "
+        "enough information.",
+        max_chars=2000,
+        height=200
+    )
     st.button("Generate!")
     c1, c2 = st.columns(2)
     with c1:
@@ -200,7 +217,7 @@ def main():
             "with an increase in creativity, diversity grows"
         )
 
-    process(url, keywords_temp, banner_temp)
+    process(url, additional_info, keywords_temp, banner_temp)
 
 
 if __name__ == '__main__':
