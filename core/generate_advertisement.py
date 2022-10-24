@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import core.parse_html
 import time
+import langid
 
 
 def get_title_and_content(url, num_retries=5):
@@ -27,7 +28,7 @@ def get_request_classifier():
 
 def get_request_generator():
     return ttm.TuneTheModel.from_id(
-        '2e515fe24e0611eda45161dc08b2d04c' # autotarget, translated
+        '2e515fe24e0611eda45161dc08b2d04c'  # autotarget, translated
     )
 
 
@@ -151,30 +152,61 @@ def gen_keywords(
     return result
 
 
+def prepare_banner(banner):
+    banner = banner.replace('\\r\\n', '\n')
+    return banner.split('\n', maxsplit=1)  # [title, description]
+
+
+# banner = [title, description]
+def is_good_banner(banner, title, content, banner_classifier, threshold=0.3):
+    if len(banner) <= 1:
+        return False, 0
+
+    if langid.classify('\n'.join(banner))[0] != 'en':
+        return False, 0
+
+    banner_classifier_input = '\n '.join(banner + [title, content[:200]])
+    score = banner_classifier.classify(banner_classifier_input)[0]
+
+    return score >= threshold, score
+
+
 def generate_banner(
     banner_generator, banner_classifier,
     title, content, temp=0.6, num_hypos=7
 ):
     model_input = get_banner_gen_prefix(title, content)
     try:
-        banners = banner_generator.generate(
-            model_input, num_hypos=num_hypos, min_tokens=4,
-            max_tokens=128, temperature=temp, top_k=30
-        )
+        banners = [('', -1, False)] * num_hypos
+        for _ in range(4):
+            ids = [
+                i for i, (b, score, b_ready) in enumerate(banners)
+                if not b_ready
+            ]
+
+            banners_cands = banner_generator.generate(
+                model_input, num_hypos=len(ids), min_tokens=4,
+                max_tokens=128, temperature=temp, top_k=30
+            )
+
+            for banner, idd in zip(banners_cands, ids):
+                banner = prepare_banner(banner)
+
+                is_good, score = is_good_banner(
+                    banner, title, content, banner_classifier
+                )
+                if is_good:
+                    banners[idd] = banner, score, True
+                else:
+                    if banners[idd][1] < score:
+                        banners[idd] = banner, score, False
     except ttm.TuneTheModelException:
         raise SystemError("Server error.")
 
-    banners = [b.replace('\\r\\n', '\n') for b in banners]
-    split_banners = [b.split('\n', maxsplit=1) for b in banners]
-    inputs = ['\n '.join(parts + [title, content[:200]])
-              for parts in split_banners]
-    scores = [banner_classifier.classify(i)[0] for i in inputs]
+    banners.sort(key=lambda x: -x[1])
 
-    result = []
-    for s, b in sorted(zip(scores, split_banners), reverse=True):
-        if len(b) <= 1:
-            continue
-        result.append(b)
+    # discard bad banners (including non-english)
+    result = [b for b, score, b_ready in banners if b_ready]
 
     if not result:
         raise ValueError("No banners generated.")

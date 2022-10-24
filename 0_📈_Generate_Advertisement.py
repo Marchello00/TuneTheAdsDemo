@@ -162,7 +162,7 @@ def main():
     with c1:
         st.subheader('Banner generation parameters')
         banner_temp = st.slider(
-            'Creativity', 0.01, 2.1, value=0.6,
+            'Creativity', 0.01, 2.1, value=0.4,
             key='banner_temp',
             help="With a decrease in creativity, correctness grows, "
             "with an increase in creativity, diversity grows"
@@ -170,7 +170,7 @@ def main():
     with c2:
         st.subheader('Keyword generation parameters')
         keywords_temp = st.slider(
-            'Creativity', 0.01, 2.1, value=1.,
+            'Creativity', 0.01, 2.1, value=0.8,
             key='kw_temp',
             help="With a decrease in creativity, correctness grows, "
             "with an increase in creativity, diversity grows"
