@@ -96,16 +96,19 @@ def process(url, requests_temp, banner_temp):
     skipped = False
     generated = False
     warned = False
+    prev_warn_place = st.empty()
     for _ in range(NUM_BANNERS):
+        warn_place = st.empty()
         c1, c2 = st.columns(2)
         with c1:
             if skipped and not warned:
-                st.warning(
+                prev_warn_place.empty()
+                warn_place.warning(
                     "Generation takes longer than usual, perhaps the "
                     "site content is too specific.\n\n"
                     "You can check the \"Site content\" section above."
                 )
-                warned = True
+                prev_warn_place = warn_place
             with st.spinner("Generating a banner..."):
                 try:
                     banners = gen_banners(
@@ -124,6 +127,7 @@ def process(url, requests_temp, banner_temp):
                 skipped = False
                 h, t = banners[0]
                 banner = h + '\n' + t
+            prev_warn_place.empty()
             st.subheader(h)
             st.write(t)
             generated = True
