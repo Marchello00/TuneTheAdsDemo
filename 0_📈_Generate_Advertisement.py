@@ -3,58 +3,59 @@ import core.utils
 import core.constants
 import core.generate_advertisement
 from samples.generate_advertisement import samples
-import sys
 
-NUM_BANNERS = 7
+if __name__ == '__main__':
+    NUM_BANNERS = 5
+    NUM_KEYWORDS = 10
 
-st.set_page_config(
-    page_title="📈 Generate Advertisement",
-)
-
-if 'request_classifier' not in st.session_state:
-    st.session_state['request_classifier'] =\
-        core.generate_advertisement.get_request_classifier()
-
-if 'keyword_generator' not in st.session_state:
-    st.session_state['keyword_generator'] =\
-        core.generate_advertisement.get_keyword_generator()
-
-if 'banner_classifier' not in st.session_state:
-    st.session_state['banner_classifier'] =\
-        core.generate_advertisement.get_banner_classifier()
-
-if 'banner_generator' not in st.session_state:
-    st.session_state['banner_generator'] =\
-        core.generate_advertisement.get_banner_generator()
-
-if 'adgen_input' not in st.session_state:
-    st.session_state['adgen_input'] = core.utils.choose(samples)
-
-
-def gen_keywords(title, content, banner, temp):
-    return core.generate_advertisement.gen_keywords(
-        st.session_state['keyword_generator'],
-        st.session_state['request_classifier'],
-        title,
-        content,
-        banner,
-        temp,
-        num_hypos=10
+    st.set_page_config(
+        page_title="📈 Generate Advertisement",
     )
 
+    if 'request_classifier' not in st.session_state:
+        st.session_state['request_classifier'] =\
+            core.generate_advertisement.get_request_classifier()
 
-def gen_banners(title, content, temp, num_hypos=5):
-    return core.generate_advertisement.generate_banner(
-        st.session_state['banner_generator'],
-        st.session_state['banner_classifier'],
-        title,
-        content,
-        temp,
-        num_hypos=num_hypos
-    )
+    if 'keyword_generator' not in st.session_state:
+        st.session_state['keyword_generator'] =\
+            core.generate_advertisement.get_keyword_generator()
+
+    if 'banner_classifier' not in st.session_state:
+        st.session_state['banner_classifier'] =\
+            core.generate_advertisement.get_banner_classifier()
+
+    if 'banner_generator' not in st.session_state:
+        st.session_state['banner_generator'] =\
+            core.generate_advertisement.get_banner_generator()
+
+    if 'adgen_input' not in st.session_state:
+        st.session_state['adgen_input'] = core.utils.choose(samples)
 
 
-def process(url, additional_info, requests_temp, banner_temp):
+# def gen_keywords(title, content, banners, temp):
+#     return core.generate_advertisement.gen_keywords_parallel(
+#         st.session_state['keyword_generator'],
+#         st.session_state['request_classifier'],
+#         title,
+#         content,
+#         banners,
+#         temp,
+#         num_hypos=10
+#     )
+
+
+# def gen_banners(title, content, temp, max_num_hypos=5):
+#     return core.generate_advertisement.generate_banners_parallel(
+#         st.session_state['banner_generator'],
+#         st.session_state['banner_classifier'],
+#         title,
+#         content,
+#         num_banners=5,
+#         temp=temp,
+#         num_workers=5,
+#     )
+
+def process(url, additional_info, keyword_temp, banner_temp):
     try:
         title, content = core.generate_advertisement.get_title_and_content(url)
     except Exception:
@@ -100,60 +101,36 @@ def process(url, additional_info, requests_temp, banner_temp):
     tmp[1].header('Keywords:')
     '--------'
 
-    skipped = False
     generated = False
-    warned = False
-    prev_warn_place = st.empty()
-    for _ in range(NUM_BANNERS):
-        warn_place = st.empty()
-        c1, c2 = st.columns(2)
-        with c1:
-            if skipped and not warned:
-                prev_warn_place.empty()
-                warn_place.warning(
-                    "Generation takes longer than usual, perhaps the "
-                    "site content is too specific.\n\n"
-                    "You can check the \"Site content\" section above."
-                )
-                prev_warn_place = warn_place
-            with st.spinner("Generating a banner..."):
-                try:
-                    banners = gen_banners(
-                        title, content, banner_temp, num_hypos=1
-                    )
-                except ValueError:
-                    skipped = True
-                    continue
-                except SystemError as e:
-                    print(e, file=sys.stderr)
-                    st.error(
-                        "Sorry, something went wrong. "
-                        "Please, try again, maybe with another site."
-                    )
-                    return
-                skipped = False
-                h, t = banners[0]
-                banner = h + '\n' + t
-            prev_warn_place.empty()
-            st.subheader(h)
-            st.write(t)
+
+    with st.spinner('Generating advertisement...'):
+        for banner, banner_keywords in\
+                core.generate_advertisement.generate_banner_keyword_parallel(
+                    st.session_state['banner_generator'],
+                    st.session_state['banner_classifier'],
+                    st.session_state['keyword_generator'],
+                    st.session_state['request_classifier'],
+                    title, content,
+                    banner_temp=banner_temp, num_banners=NUM_BANNERS,
+                    keyword_temp=1.1, num_keywords=NUM_KEYWORDS,
+                    score=True, retries=2,
+                    num_workers=NUM_BANNERS,
+                    num_kw_workers=4
+                ):
+            c1, c2 = st.columns(2)
+            with c1:
+                h, t = banner
+                st.subheader(h)
+                st.write(t)
+
+            with c2:
+                for t in banner_keywords:
+                    ex = st.expander(t[0])
+                    ex.bar_chart(t[1], x='Property', y='Score')
+
             generated = True
+            '--------'
 
-        with c2:
-            with st.spinner("Generating keywords..."):
-                keywords = gen_keywords(
-                    title,
-                    content,
-                    banner,
-                    requests_temp
-                )
-                st.session_state["keywords"] = keywords
-
-            for t in st.session_state["keywords"]:
-                ex = st.expander(t[0])
-                ex.bar_chart(t[1], x='Property', y='Score')
-
-        '--------'
     if not generated:
         st.error(
             "Sorry, we were unable to create banners "
@@ -162,6 +139,7 @@ def process(url, additional_info, requests_temp, banner_temp):
             "the \"Site Content\" section above.\n\n"
             "Please, try again or choose another site."
         )
+        return
 
     st.caption(core.constants.generation_warning)
 

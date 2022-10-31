@@ -4,6 +4,8 @@ import numpy as np
 import core.parse_html
 import time
 import langid
+from concurrent.futures import ProcessPoolExecutor as Pool
+from functools import partial
 
 
 def get_title_and_content(url, num_retries=5):
@@ -107,7 +109,7 @@ def is_bad_content(title, content):
     return False
 
 
-def classify_request(request_classifier, title, content, banner, request):
+def classify_request(request, request_classifier, title, content, banner):
     scores = request_classifier.classify(
         get_request_classify_prompt(title, content, banner, request)
     )
@@ -119,8 +121,12 @@ def classify_request(request_classifier, title, content, banner, request):
 
 def gen_keywords(
     keyword_generator, request_classifier,
-    title, content, banner, temp=1.1, num_hypos=18
+    title, content, banner, temp=1.1, num_hypos=18,
+    num_workers=1
 ):
+    if not isinstance(banner, str):
+        h, t = banner
+        banner = h + '\n' + t
     model_input = get_keyword_gen_prefix(title, content, banner)
 
     result = keyword_generator.generate(
@@ -130,15 +136,27 @@ def gen_keywords(
 
     result = np.unique(result)
 
-    result = [
-        (
-            keyword,
-            classify_request(
-                request_classifier, title, content, banner, keyword
+    if num_workers == 1:
+        result = [
+            (
+                keyword,
+                classify_request(
+                    keyword, request_classifier, title, content, banner
+                )
             )
-        )
-        for keyword in result
-    ]
+            for keyword in result
+        ]
+    else:
+        with Pool(num_workers) as p:
+            class_probas = p.map(
+                partial(
+                    classify_request,
+                    request_classifier=request_classifier,
+                    title=title, content=content, banner=banner
+                ),
+                result
+            )
+            result = list(zip(result, class_probas))
 
     result = sorted(
         [
@@ -160,7 +178,9 @@ def prepare_banner(banner):
 
 
 # banner = [title, description]
-def is_good_banner(banner, title, content, banner_classifier, threshold=0.3):
+def is_good_banner(
+    banner, title, content, banner_classifier, score=True, threshold=0.3
+):
     if len(banner) <= 1:
         return False, 0
     if any(len(b) == 0 for b in banner):
@@ -170,19 +190,23 @@ def is_good_banner(banner, title, content, banner_classifier, threshold=0.3):
         return False, 0
 
     banner_classifier_input = '\n '.join(banner + [title, content[:200]])
-    score = banner_classifier.classify(banner_classifier_input)[0]
+    if score:
+        score = banner_classifier.classify(banner_classifier_input)[0]
+    else:
+        score = 1.
 
     return score >= threshold, score
 
 
 def generate_banner(
     banner_generator, banner_classifier,
-    title, content, temp=0.6, num_hypos=7
+    title, content, temp=0.6, num_hypos=7,
+    retries=4, score=True, exceptions=True
 ):
     model_input = get_banner_gen_prefix(title, content)
     try:
         banners = [('', -1, False)] * num_hypos
-        for _ in range(4):
+        for _ in range(retries):
             ids = [
                 i for i, (b, score, b_ready) in enumerate(banners)
                 if not b_ready
@@ -197,7 +221,7 @@ def generate_banner(
                 banner = prepare_banner(banner)
 
                 is_good, score = is_good_banner(
-                    banner, title, content, banner_classifier
+                    banner, title, content, banner_classifier, score=score
                 )
                 if is_good:
                     banners[idd] = banner, score, True
@@ -205,7 +229,10 @@ def generate_banner(
                     if banners[idd][1] < score:
                         banners[idd] = banner, score, False
     except ttm.TuneTheModelException:
-        raise SystemError("Server error.")
+        if not exceptions:
+            return []
+        else:
+            raise SystemError("Server error.")
 
     banners.sort(key=lambda x: -x[1])
 
@@ -213,5 +240,63 @@ def generate_banner(
     result = [b for b, score, b_ready in banners if b_ready]
 
     if not result:
-        raise ValueError("No banners generated.")
+        if not exceptions:
+            return []
+        else:
+            raise ValueError("No banners generated.")
     return result
+
+
+def generate_banner_keyword(
+    fake,
+    banner_generator, banner_classifier,
+    keyword_generator, request_classifier,
+    title, content,
+    banner_temp=0.6,
+    keyword_temp=1.1, num_keywords=18,
+    score=True, retries=2, num_kw_workers=4,
+):
+    try:
+        banner = generate_banner(
+            banner_generator, banner_classifier,
+            title, content,
+            temp=banner_temp, num_hypos=1, retries=retries,
+            exceptions=True
+        )[0]
+        keywords = gen_keywords(
+            keyword_generator, request_classifier,
+            title, content, banner,
+            temp=keyword_temp, num_hypos=num_keywords,
+            num_workers=num_kw_workers
+        )
+    except Exception:
+        return None, None
+
+    return banner, keywords
+
+
+def generate_banner_keyword_parallel(
+    banner_generator, banner_classifier,
+    keyword_generator, request_classifier,
+    title, content,
+    banner_temp=0.6, num_banners=5,
+    keyword_temp=1.1, num_keywords=18,
+    score=True, retries=2,
+    num_workers=5, num_kw_workers=4
+):
+    with Pool(num_workers) as p:
+        for banner, keywords in p.map(
+            partial(generate_banner_keyword,
+                banner_generator=banner_generator,
+                banner_classifier=banner_classifier,
+                keyword_generator=keyword_generator,
+                request_classifier=request_classifier,
+                title=title, content=content,
+                banner_temp=banner_temp,
+                keyword_temp=keyword_temp, num_keywords=num_keywords,
+                score=score, retries=retries, num_kw_workers=num_kw_workers),
+            range(num_banners)
+        ):
+            if banner is None:
+                continue
+            yield banner, keywords

@@ -85,7 +85,7 @@ def parse_title(doc) -> str:
         return ''
     try:
         return lxml.html.fromstring(doc.html).findtext('.//title') or ''
-    except UnicodeDecodeError:
+    except (UnicodeDecodeError, lxml.html.etree.ParserError):
         return ''
 
 
@@ -182,6 +182,22 @@ def cleanup(text):
     return text
 
 
+def html_parser(html, url=""):
+    if not html:
+        return "", ""
+    doc = Doc(0, url, html, title='', text='', toc=None)
+    doc.title = parse_title(doc)
+    doc.toc, doc.text, meta_title, meta_descr = parse_content(doc)
+    if not doc.title:
+        doc.title = meta_title
+    content = '\n'.join([s.text for s in doc.toc.all_segments])
+    if not content:
+        content = doc.text
+    if meta_title or meta_descr:
+        content = ' '.join([meta_title, meta_descr]) + ' ' + content
+    return cleanup(doc.title), cleanup(content)
+
+
 def page_parser(url):
     variants = [url]
     if 'www.' not in url:
@@ -205,14 +221,4 @@ def page_parser(url):
                 break
         except Exception:
             pass
-    doc = Doc(0, url, html, title='', text='', toc=None)
-    doc.title = parse_title(doc)
-    doc.toc, doc.text, meta_title, meta_descr = parse_content(doc)
-    if not doc.title:
-        doc.title = meta_title
-    content = '\n'.join([s.text for s in doc.toc.all_segments])
-    if not content:
-        content = doc.text
-    if meta_title or meta_descr:
-        content = ' '.join([meta_title, meta_descr]) + ' ' + content
-    return cleanup(doc.title), cleanup(content)
+    return html_parser(html, url)
